@@ -57,6 +57,38 @@ test('lists a bundled dependency in the banner and writes the notices file', t =
     assert.equal(notices.match(/Permission is hereby granted/g)?.length, 2, 'both license texts');
 });
 
+test('detects the entry and the global of vanilla-jsoneditor without options', t => {
+    const { cwd, status, stdout, stderr } = iifeify(t, 'vanilla-jsoneditor@3.13.0');
+    assert.equal(status, 0, stderr);
+    assert.match(stdout, /\n {2}entry {4}standalone\.js \(browser build without dependencies\)\n {2}global {3}VanillaJsonEditor \(from the package name\)\n$/);
+
+    const script = readFileSync(join(cwd, 'vanilla-jsoneditor.iife.js'), 'utf8');
+    assert.ok(script.startsWith(
+        '/*! vanilla-jsoneditor 3.13.0 - Copyright (c) 2020-2026 by Jos de Jong - ISC License - https://github.com/josdejong/svelte-jsoneditor */\nvar VanillaJsonEditor='
+    ));
+});
+
+test('uses the UMD build of Chart.js as the classic script it is', t => {
+    const { cwd, status, stdout, stderr } = iifeify(t, 'chart.js@4.6.1');
+    assert.equal(status, 0, stderr);
+    assert.match(stdout, /\n {2}entry {4}dist\/chart\.umd\.min\.js \(browser build without dependencies, a classic script already\)\n {2}global {3}Chart \(set by the script itself\)\n$/);
+
+    const script = readFileSync(join(cwd, 'chart.js.iife.js'), 'utf8');
+    assert.match(script, /^\/\*! chart\.js 4\.6\.1 - .* - MIT License - /);
+    assert.match(script, /\.Chart=/, 'the UMD build assigns Chart itself');
+});
+
+test('makes DOMPurify its default export, under the name its own browser build uses', t => {
+    const { cwd, status, stdout, stderr } = iifeify(t, 'dompurify@3.4.17');
+    assert.equal(status, 0, stderr);
+    assert.match(stdout, /\n {2}global {3}DOMPurify \(from dist\/purify\.js, holds the default export\)\n$/);
+
+    // Without a DOM, DOMPurify returns itself unsupported, but with its version.
+    const { DOMPurify } = run(readFileSync(join(cwd, 'dompurify.iife.js'), 'utf8'));
+    assert.equal(typeof DOMPurify, 'function', 'DOMPurify itself rather than { default: DOMPurify }');
+    assert.equal(DOMPurify.version, '3.4.17');
+});
+
 test('refuses a package that needs Node built-ins', t => {
     const { cwd, status, stdout, stderr } = iifeify(t, 'mkdirp@3.0.1');
     assert.equal(status, 1);

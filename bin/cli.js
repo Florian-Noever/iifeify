@@ -15,14 +15,14 @@ const cli = cac('iifeify');
 
 cli.command('<package>', 'Turn an npm package into one classic browser script that defines a single global')
     .usage('<package>[@version] [options]')
-    .option('-e, --entry <path>', 'File or subpath inside the package to bundle (default: its own browser entry)')
-    .option('-g, --global-name <name>', 'Global variable the script defines (default: the package name in PascalCase)')
+    .option('-e, --entry <path>', 'File or subpath inside the package to bundle (default: detected)')
+    .option('-g, --global-name <name>', 'Global variable the script defines (default: detected)')
     .option('-o, --outfile <file>', 'Where to write the script (default: ./<package>.iife.js)')
     .option('--minify', 'Minify the output; --no-minify keeps it readable', { default: true })
     .option('--target <list>', 'Language level of the output, e.g. es2020 (default: esnext)')
     .option('--notices', 'Also write the full license texts of all bundled packages, e.g. to ms.iife.LICENSES.txt')
-    .example('  $ iifeify ms')
-    .example('  $ iifeify vanilla-jsoneditor@3.13.0 --entry standalone.js --global-name VanillaJsonEditor')
+    .example('  $ iifeify vanilla-jsoneditor@3.13.0')
+    .example('  $ iifeify chart.js --entry dist/chart.js --global-name ChartModule')
     .action(async (spec, options) => {
         const result = await convert({
             spec: String(spec),
@@ -70,7 +70,7 @@ function endStep(outcome) {
 }
 
 /** @param {Awaited<ReturnType<typeof convert>>} result */
-function report({ files, bytes, packages, entry, globalName, warnings, hint }) {
+function report({ files, bytes, packages, entry, global, warnings }) {
     const [root, ...dependencies] = packages;
     // Relative to the current folder if the file is inside it, else in full.
     const shown = file => {
@@ -82,8 +82,9 @@ function report({ files, bytes, packages, entry, globalName, warnings, hint }) {
 
     console.log(`Wrote ${shown(files.js)} (${size})`);
     console.log(`  package  ${described(root)}`);
-    console.log(`  entry    ${entry}`);
-    console.log(`  global   ${globalName}`);
+    console.log(`  entry    ${entry.file} (${entry.reason})`);
+    const holds = global.defaultExport ? ', holds the default export' : '';
+    console.log(`  global   ${global.name ? `${global.name} (${global.reason}${holds})` : global.reason}`);
     if (dependencies.length > 0) {
         console.log(`  bundled  ${dependencies.length} ${dependencies.length === 1 ? 'dependency' : 'dependencies'}`);
         for (const dependency of dependencies) {
@@ -99,9 +100,6 @@ function report({ files, bytes, packages, entry, globalName, warnings, hint }) {
 
     for (const warning of warnings) {
         console.error(`\n${warning}`);
-    }
-    if (hint) {
-        console.log(`\nHint: ${hint}`);
     }
 }
 

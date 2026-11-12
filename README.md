@@ -3,10 +3,10 @@
 Turn an npm package into one classic browser script.
 
 ```bash
-npx -y iifeify vanilla-jsoneditor@3.13.0 --entry standalone.js --global-name VanillaJsonEditor
+npx -y iifeify vanilla-jsoneditor@3.13.0
 ```
 
-This writes `vanilla-jsoneditor.iife.js`. Loaded with a plain `<script>` tag, the file defines the global `VanillaJsonEditor`, which holds everything the package exports. The file starts with a license banner generated from the package's own metadata:
+This writes `vanilla-jsoneditor.iife.js`. Loaded with a plain `<script>` tag, the file defines the global `VanillaJsonEditor`, which holds everything the package exports. iifeify chose both by itself: the package's browser build `standalone.js`, which needs no other packages, and a global named after the package. The file starts with a license banner generated from the package's own metadata:
 
 ```js
 /*! vanilla-jsoneditor 3.13.0 - Copyright (c) 2020-2026 by Jos de Jong - ISC License - https://github.com/josdejong/svelte-jsoneditor */
@@ -21,6 +21,7 @@ iifeify is for hosts that accept only classic scripts and cannot `import` anythi
 
 - **Any npm package** — installed with npm itself, so versions, ranges, tags, scoped packages, private registries and proxies work as they do for `npm install`
 - **One file, one global** — the package and every dependency it imports, bundled with [esbuild](https://esbuild.github.io/) into an IIFE
+- **No options needed** — the package's own browser build is used when that saves bundling its dependencies, and the global gets the name the package itself uses, holding what its documentation shows
 - **License banner** — one line per bundled package with its version, copyright notice, license and web address, read from its `package.json` and license file
 - **Full license texts** — `--notices` writes the license and notice files of all bundled packages next to the script
 - **Browser check** — a package that imports `fs`, `path` or another Node.js built-in is refused, with the modules and the files that import them
@@ -53,8 +54,8 @@ npx iifeify <package>[@version] [options]
 
 | Option | Meaning | Default |
 | --- | --- | --- |
-| `-e`, `--entry <path>` | File or subpath inside the package to bundle | The package's own browser entry |
-| `-g`, `--global-name <name>` | Global variable the script defines | The package name in PascalCase |
+| `-e`, `--entry <path>` | File or subpath inside the package to bundle | Detected, see [Which file is bundled](#which-file-is-bundled) |
+| `-g`, `--global-name <name>` | Global variable the script defines | Detected, see [The global](#the-global) |
 | `-o`, `--outfile <file>` | Where to write the script | `./<package>.iife.js` |
 | `--no-minify` | Keep the output readable | Minified |
 | `--target <list>` | Language level of the output, for example `es2020` | `esnext` |
@@ -65,42 +66,56 @@ npx iifeify <package>[@version] [options]
 While it runs, iifeify prints each step and how long it took on stderr, and the result on stdout:
 
 ```text
-Installing vanilla-jsoneditor@3.13.0 with npm... done in 3.4s
-Bundling vanilla-jsoneditor 3.13.0 with esbuild... done in 555ms
+Installing vanilla-jsoneditor@3.13.0 with npm... done in 3.3s
+Bundling vanilla-jsoneditor 3.13.0 with esbuild... done in 847ms
 Wrote vanilla-jsoneditor.iife.js (1.21 MB)
   package  vanilla-jsoneditor 3.13.0 - ISC
-  entry    standalone.js
-  global   VanillaJsonEditor
+  entry    standalone.js (browser build without dependencies)
+  global   VanillaJsonEditor (from the package name)
 ```
 
-A step that fails ends with `failed`, followed by the reason. The exit code is 0 on success, 1 if the package cannot be converted and 2 for a wrong command line.
+The summary says which file was bundled and where the global's name comes from. A step that fails ends with `failed`, followed by the reason. The exit code is 0 on success, 1 if the package cannot be converted and 2 for a wrong command line.
 
 ### How it works
 
 1. iifeify runs `npm install` for the package in a temporary folder. It uses your npm configuration, so private registries and proxies work. Install scripts are not run.
-2. It bundles the package and the dependencies it imports into one file with esbuild, in the `iife` format with your global name.
+2. It chooses the file to bundle and the global's name, and bundles that file and the dependencies it imports into one file with esbuild, in the `iife` format.
 3. It reads `package.json` and the license file of every package that ended up in the bundle and writes the banner.
 4. It removes the temporary folder.
 
 ### Which file is bundled
 
-Without `--entry`, iifeify bundles what a bundler picks for an `import` of the package in browser code: the package's `exports` (conditions `browser`, `import`, `module`, `default`), or else its `browser`, `module` or `main` field. Dependencies are bundled from `node_modules`, in the versions that their version ranges resolve to on that day. The banner records the exact versions.
+Without `--entry`, iifeify starts from what a bundler picks for an `import` of the package in browser code: the package's `exports` (conditions `browser`, `import`, `module`, `default`), or else its `browser`, `module` or `main` field.
+
+When that import entry pulls in other packages, iifeify looks at the files the package names for browsers in `browser`, `unpkg` and `jsdelivr`, and takes the first that needs no other package and exports something, or is a classic script. Such a build is the one the package's authors tested, it gives the same output every time, and it is usually what the package's documentation describes for a `<script>` tag: vanilla-jsoneditor gets its `standalone.js`, Chart.js its `chart.umd.min.js` and Vue its `vue.global.js`. When the import entry cannot be bundled at all, those files are tried as well.
+
+Otherwise iifeify bundles the import entry, together with its dependencies from `node_modules` in the versions their ranges resolve to on that day. The banner records the exact versions.
 
 With `--entry` you choose a file inside the package, or a subpath that the package exports:
 
 ```bash
-npx iifeify vanilla-jsoneditor --entry standalone.js
-npx iifeify rxjs --entry operators
+npx -y iifeify vanilla-jsoneditor --entry index.js
+npx -y iifeify rxjs --entry operators
 ```
 
-Some packages ship a ready-made browser file with all dependencies already inside, like `standalone.js` above. Bundling that file gives the same output every time. When a package names such a file in its `browser` field but `exports` points elsewhere, iifeify prints a hint with the `--entry` to use.
+**Classic scripts are used as they are.** A UMD or IIFE build that defines its globals itself, such as `vue.global.js`, is not wrapped in another IIFE, which would hide its global. iifeify writes it with the banner on top, minified unless `--no-minify`. Its global keeps the name the script gives it, so `--global-name` cannot be used with it.
 
 ### The global
 
-- For an ES module package the global is an object with the package's exports. A default export is the property `default`.
-- For a CommonJS package the global is whatever the package assigns to `module.exports`.
-- If the package imports CSS, the styles are written next to the script, with `.css` in place of `.js`.
-- `process.env.NODE_ENV` is replaced by `"production"`.
+Without `--global-name`, the global gets the name the package uses itself:
+
+1. the one its type declarations declare with `export as namespace`, such as `ApexCharts`;
+2. else the one its own UMD or IIFE build assigns, such as `Chart`, `dayjs` or `DOMPurify`;
+3. else a name made from the package name: `chart.js` gives `Chart`, and `vanilla-jsoneditor` gives `VanillaJsonEditor`, spelled as the package's export `JsonEditor`.
+
+What the global holds:
+
+- For an ES module with a default export, the default export, with the module's other exports as its properties. That is what a package's own browser build defines, so `DOMPurify.sanitize()` works as its documentation shows. A default export that cannot have properties, such as a number, leaves the global an object with all exports.
+- For an ES module without a default export, an object with the module's exports.
+- For a CommonJS package, whatever the package assigns to `module.exports`.
+- A classic script defines its globals itself.
+
+If the package imports CSS, the styles are written next to the script, with `.css` in place of `.js`. `process.env.NODE_ENV` is replaced by `"production"`.
 
 ### License information
 
@@ -172,7 +187,9 @@ Plain JavaScript modules, run by Node.js as they are: there is no build step, an
 | `bin/cli.js` | The command line, parsed with [cac](https://github.com/cacjs/cac), and the summary it prints |
 | `src/convert.js` | One conversion from start to end, including the temporary folder |
 | `src/install.js` | Reading the package spec and running `npm install` |
-| `src/bundle.js` | The esbuild call, and the explanation when a package cannot be bundled |
+| `src/entry.js` | Which file to bundle: the import entry, or a browser build, and whether it is a classic script |
+| `src/global.js` | The global's name: from the type declarations, the package's own build, or the package name |
+| `src/bundle.js` | The esbuild calls that probe an entry and build the script, and the explanation when a package cannot be bundled |
 | `src/packages.js` | Which packages ended up in the bundle, and their metadata and license files |
 | `src/banner.js` | The banner and the notices file |
 
@@ -192,7 +209,7 @@ node bin/cli.js ms     # the tool, run from the checkout
 
 ### Tests
 
-Both suites use Node.js's own test runner. `npm test` runs offline: it bundles small packages written into a temporary `node_modules`, and runs the CLI without installing anything. `npm run test:e2e` converts `ms`, `is-odd` and `mkdirp` from the npm registry.
+Both suites use Node.js's own test runner. `npm test` runs offline: it bundles small packages written into a temporary `node_modules`, and runs the CLI on packages in local folders, which npm installs without the registry. `npm run test:e2e` converts `ms`, `is-odd`, `mkdirp`, `vanilla-jsoneditor`, `chart.js` and `dompurify` from the npm registry.
 
 ### CI & Releases
 

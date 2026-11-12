@@ -1,9 +1,12 @@
-import { existsSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { basename, dirname, join, relative, resolve } from 'node:path';
 
 import { renderBanner, renderNotices } from './banner.js';
 import { bundle, checkOptions } from './bundle.js';
+import { chooseEntry } from './entry.js';
+import { UsageError } from './errors.js';
+import { chooseGlobalName, ownGlobal } from './global.js';
 import { installPackage, parseSpec } from './install.js';
 import { bundledPackages } from './packages.js';
 
@@ -18,15 +21,18 @@ import { bundledPackages } from './packages.js';
  *
  * @param {object} options
  * @param {string} options.spec            package to convert, such as "vanilla-jsoneditor@3.13.0"
- * @param {string} [options.entry]         file or subpath inside the package; default is its browser entry
- * @param {string} [options.globalName]    default is the package name in PascalCase
+ * @param {string} [options.entry]         file or subpath inside the package; detected if not given
+ * @param {string} [options.globalName]    detected if not given
  * @param {string} [options.outfile]       default is <package name>.iife.js in the current folder
  * @param {boolean} [options.minify]
  * @param {string[]} [options.target]      esbuild targets such as ["es2020"]
  * @param {boolean} [options.notices]      also write the full license texts next to the script
  * @param {(step: Step) => void} [options.onStep]  called as each step starts, to report progress
  * @returns {Promise<{ files: { js: string, css?: string, notices?: string }, bytes: number,
- *     packages: object[], entry: string, globalName: string, warnings: string[], hint?: string }>}
+ *     packages: object[], entry: { file: string, reason: string },
+ *     global: { name?: string, reason: string, defaultExport: boolean }, warnings: string[] }>}
+ *     the entry and the global come with the reason they were chosen; a classic script's global
+ *     has no name when it cannot be read from the script
  */
 export async function convert({ spec, entry, globalName: requestedGlobalName, outfile, minify = true, target, notices = false, onStep }) {
     const wanted = parseSpec(spec);
@@ -38,11 +44,14 @@ export async function convert({ spec, entry, globalName: requestedGlobalName, ou
     try {
         onStep?.({ name: 'install', spec });
         const { dir, manifest } = await installPackage(wanted, workDir);
-        const globalName = requestedGlobalName ?? defaultGlobalName(manifest.name);
 
         const label = `${manifest.name} ${manifest.version}`;
         onStep?.({ name: 'bundle', label });
-        const built = await bundle({ workDir, name: wanted.name, dir, label, entry, globalName, minify, target });
+        const plan = await chooseEntry({ workDir, name: wanted.name, dir, manifest, label, entry });
+        const entryFile = relative(dir, plan.probe.file).replaceAll('\\', '/');
+        const global = await globalFor({ plan, entryFile, requestedGlobalName, packageName: manifest.name, dir, manifest });
+
+        const built = await bundle({ workDir, plan, label, entry, globalName: global.name, minify, target });
         const packages = bundledPackages(built.inputs, dir);
         const banner = renderBanner(packages);
 
@@ -65,10 +74,9 @@ export async function convert({ spec, entry, globalName: requestedGlobalName, ou
             files,
             bytes: Buffer.byteLength(script),
             packages,
-            entry: relative(dir, built.entry).replaceAll('\\', '/'),
-            globalName,
+            entry: { file: entryFile, reason: plan.kind === 'script' ? `${plan.reason}, a classic script already` : plan.reason },
+            global: { ...global, defaultExport: built.defaultExport },
             warnings: [...built.warnings.map(warning => warning.trim()), ...unlicensed],
-            hint: entry ? undefined : prebuiltHint(manifest, dir, built.entry),
         };
     } finally {
         try {
@@ -80,35 +88,30 @@ export async function convert({ spec, entry, globalName: requestedGlobalName, ou
     }
 }
 
-/** "vanilla-jsoneditor" and "@scope/vanilla-jsoneditor" both give "VanillaJsoneditor". */
-export function defaultGlobalName(packageName) {
-    const words = unscoped(packageName).split(/[^A-Za-z0-9]+/).filter(Boolean);
-    const name = words.map(word => word[0].toUpperCase() + word.slice(1)).join('');
-    return /^[A-Za-z]/.test(name) ? name : `_${name}`;
-}
-
 /** "@scope/vanilla-jsoneditor" gives "vanilla-jsoneditor.iife.js". */
 export function defaultOutfile(packageName) {
-    return `${unscoped(packageName)}.iife.js`;
-}
-
-function unscoped(packageName) {
-    return packageName.slice(packageName.indexOf('/') + 1);
+    return `${packageName.slice(packageName.indexOf('/') + 1)}.iife.js`;
 }
 
 /**
- * Some packages point "exports" at a file that needs its dependencies bundled in, and "browser" at
- * a ready-made file that contains them. Bundlers follow "exports", so the ready-made file takes --entry.
+ * The global's name, and where it comes from. A classic script defines its globals itself, so
+ * there is nothing to name; the summary shows the one it defines, if that can be read from it.
+ *
+ * @returns {Promise<{ name?: string, reason: string }>}
  */
-function prebuiltHint(manifest, dir, entryFile) {
-    if (typeof manifest.browser !== 'string') {
-        return undefined;
+async function globalFor({ plan, entryFile, requestedGlobalName, packageName, dir, manifest }) {
+    if (plan.kind === 'script') {
+        const own = ownGlobal(plan.probe.file);
+        if (requestedGlobalName) {
+            throw new UsageError(
+                `${entryFile} is a classic script that defines its own global${own ? `, ${own}` : ''}, so --global-name cannot rename it. `
+                + 'Leave out --global-name, or choose another file with --entry.'
+            );
+        }
+        return { name: own, reason: 'set by the script itself' };
     }
-
-    const prebuilt = resolve(dir, manifest.browser);
-    if (prebuilt === entryFile || !existsSync(prebuilt)) {
-        return undefined;
+    if (requestedGlobalName) {
+        return { name: requestedGlobalName, reason: 'given with --global-name' };
     }
-    const entry = relative(dir, prebuilt).replaceAll('\\', '/');
-    return `${manifest.name} also ships a prebuilt browser file. To bundle that instead, add: --entry ${entry}`;
+    return chooseGlobalName({ packageName, dir, manifest, plan });
 }

@@ -25,7 +25,30 @@ test('prints each step on stderr and the result on stdout', t => {
     assert.equal(status, 0, stderr);
     assert.ok(stderr.startsWith(`Installing ${spec} with npm... done in `), stderr);
     assert.match(stderr, /\.\.\. done in \d+(?:ms|\.\ds)\nBundling widget 1\.0\.0 with esbuild\.\.\. done in \d+(?:ms|\.\ds)\n$/);
-    assert.match(stdout, /^Wrote out\.js \(0\.\d KB\)\n {2}package {2}widget 1\.0\.0 - MIT\n {2}entry {4}index\.js\n {2}global {3}Widget\n$/);
+    assert.equal(stdout.replace(/\(0\.\d KB\)/, '(size)'), [
+        'Wrote out.js (size)',
+        '  package  widget 1.0.0 - MIT',
+        '  entry    index.js (the import entry)',
+        '  global   Widget (from the package name)',
+        '',
+    ].join('\n'));
+});
+
+test('uses a classic script as it is, and refuses to rename its global', t => {
+    const root = tempTree(t, {
+        'widget/package.json': { name: 'widget', version: '1.0.0', main: 'widget.global.js', license: 'MIT' },
+        'widget/widget.global.js': 'var Widget = (function () { return { kind: "global" }; })();\n',
+    });
+    const spec = `widget@file:${join(root, 'widget').replaceAll('\\', '/')}`;
+    const iifeify = (...args) => spawnSync(process.execPath, [cli, spec, '-o', 'out.js', ...args], { cwd: root, encoding: 'utf8' });
+
+    const copied = iifeify();
+    assert.equal(copied.status, 0, copied.stderr);
+    assert.match(copied.stdout, /\n {2}entry {4}widget\.global\.js \(the import entry, a classic script already\)\n {2}global {3}Widget \(set by the script itself\)\n$/);
+
+    const renamed = iifeify('--global-name', 'Other');
+    assert.equal(renamed.status, 2);
+    assert.match(renamed.stderr, /\nwidget\.global\.js is a classic script that defines its own global, Widget, so --global-name cannot rename it\. /);
 });
 
 test('--help prints the usage, the options and the examples', () => {
@@ -35,7 +58,7 @@ test('--help prints the usage, the options and the examples', () => {
     for (const option of ['-e, --entry <path>', '-g, --global-name <name>', '-o, --outfile <file>', '--no-minify', '--target <list>', '--notices']) {
         assert.ok(stdout.includes(option), option);
     }
-    assert.match(stdout, /\nExamples:\n {2}\$ iifeify ms\n/);
+    assert.match(stdout, /\nExamples:\n {2}\$ iifeify vanilla-jsoneditor@3\.13\.0\n/);
 });
 
 test('--version prints the version from package.json', () => {

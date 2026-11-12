@@ -1,6 +1,6 @@
 {
     "name": "iifeify",
-    "version": "1.1.0",
+    "version": "2.0.0",
     "description": "Turn any browser-compatible npm package into a single classic script (an IIFE that defines one global), with a generated license banner.",
     "license": "MIT",
     "author": "Florian Noever",
@@ -45,7 +45,7 @@
         "lint": "eslint --max-warnings 0",
         "test": "node --test \"test/*.test.js\"",
         "test:e2e": "node --test \"test/e2e/*.test.js\"",
-        "build:example": "node bin/cli.js vanilla-jsoneditor@3.13.0 --entry standalone.js --global-name VanillaJsonEditor --outfile examples/bc-json-viewer/vanilla-jsoneditor.iife.js"
+        "build:example": "node bin/cli.js vanilla-jsoneditor@3.13.0 --outfile examples/bc-json-viewer/vanilla-jsoneditor.iife.js"
     },
     "dependencies": {
         "cac": "^7.1.0",
