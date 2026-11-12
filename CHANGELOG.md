@@ -4,7 +4,7 @@ All notable changes to **iifeify** are documented in this file.
 
 ---
 
-## [Unreleased]
+## [1.0.1] – 2026-11-12
 
 ### Added
 
