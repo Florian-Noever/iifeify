@@ -2,6 +2,7 @@ import { existsSync, statSync } from 'node:fs';
 import { isBuiltin } from 'node:module';
 import { isAbsolute, relative, resolve, sep } from 'node:path';
 import * as esbuild from 'esbuild';
+
 import { ConversionError, UsageError } from './errors.js';
 
 // esbuild derives the names in its metafile from an output name. Nothing is written under it.
@@ -13,13 +14,17 @@ const MESSAGE_FORMAT = { color: false, terminalWidth: 100 };
 /**
  * Rejects a global name or target that esbuild will not accept. esbuild defines the rules for
  * both, so it is asked directly. This is quick, so it can run before anything is installed.
+ *
+ * @param {{ globalName?: string, target?: string[] }} options
  */
 export async function checkOptions({ globalName, target }) {
     try {
         await esbuild.transform('', { format: 'iife', globalName, target });
     } catch (error) {
         // A bad target fails with a message that names it. A bad global name fails like a syntax error in code.
-        if (!Array.isArray(error.errors)) throw new UsageError(error.message);
+        if (!Array.isArray(error.errors)) {
+            throw new UsageError(error.message);
+        }
         throw new UsageError(`--global-name "${globalName}" is not a valid name. ${error.errors.map(({ text }) => text).join(' ')}`);
     }
 }
@@ -64,7 +69,9 @@ export async function bundle({ workDir, name, dir, label, entry, globalName, min
             logLevel: 'silent',
         });
     } catch (error) {
-        if (!Array.isArray(error.errors)) throw error;
+        if (!Array.isArray(error.errors)) {
+            throw error;
+        }
         throw new ConversionError(await explainFailure(error.errors, label, entryPoint, entry));
     }
 
@@ -72,15 +79,18 @@ export async function bundle({ workDir, name, dir, label, entry, globalName, min
     const inputs = new Set();
     for (const output of Object.values(outputs)) {
         for (const [file, { bytesInOutput }] of Object.entries(output.inputs)) {
-            if (bytesInOutput > 0) inputs.add(resolve(workDir, file));
+            if (bytesInOutput > 0) {
+                inputs.add(resolve(workDir, file));
+            }
         }
     }
     const text = extension => result.outputFiles.find(file => file.path.endsWith(extension))?.text;
 
+    // A build that succeeds always has a script and an entry point.
     return {
-        js: text('.js'),
+        js: /** @type {string} */ (text('.js')),
         css: text('.css'),
-        entry: resolve(workDir, outputs[OUT_JS].entryPoint),
+        entry: resolve(workDir, /** @type {string} */ (outputs[OUT_JS].entryPoint)),
         // A module that the package's "browser" field switches off is listed under a made-up path.
         inputs: [...inputs].filter(existsSync),
         warnings: await esbuild.formatMessages(result.warnings, { kind: 'warning', ...MESSAGE_FORMAT }),
@@ -93,15 +103,21 @@ export async function bundle({ workDir, name, dir, label, entry, globalName, min
  * browser, import, module and default, else through the fields browser, module and main.
  */
 function entryPointFor(name, dir, entry) {
-    if (!entry) return name;
+    if (!entry) {
+        return name;
+    }
 
     const file = resolve(dir, entry);
     const fromPackage = relative(dir, file);
     if (fromPackage === '..' || fromPackage.startsWith(`..${sep}`) || isAbsolute(fromPackage)) {
         throw new UsageError(`--entry must name something inside the package, got: ${entry}`);
     }
-    if (!fromPackage) return name;
-    if (statSync(file, { throwIfNoEntry: false })?.isFile()) return file;
+    if (!fromPackage) {
+        return name;
+    }
+    if (statSync(file, { throwIfNoEntry: false })?.isFile()) {
+        return file;
+    }
     return `${name}/${fromPackage.replaceAll('\\', '/')}`; // a subpath from the package's "exports"
 }
 

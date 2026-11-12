@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { join } from 'node:path';
 import { test } from 'node:test';
+
 import { bundledPackages, describePackage, packageDirOf } from '../src/packages.js';
 import { tempTree } from './helpers.js';
 

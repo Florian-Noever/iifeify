@@ -7,6 +7,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import vm from 'node:vm';
+
 import { tempTree } from '../helpers.js';
 
 const cli = fileURLToPath(new URL('../../bin/cli.js', import.meta.url));
@@ -52,7 +53,7 @@ test('lists a bundled dependency in the banner and writes the notices file', t =
     assert.match(notices, /^License notices for the packages bundled in odd\.js\n/);
     assert.match(notices, /\nis-odd 3\.0\.1\nLicense: MIT\n/);
     assert.match(notices, /\nis-number 6\.\d+\.\d+\nLicense: MIT\n/);
-    assert.equal(notices.match(/Permission is hereby granted/g).length, 2, 'both license texts');
+    assert.equal(notices.match(/Permission is hereby granted/g)?.length, 2, 'both license texts');
 });
 
 test('refuses a package that needs Node built-ins', t => {

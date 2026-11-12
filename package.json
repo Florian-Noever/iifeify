@@ -1,38 +1,64 @@
 {
-  "name": "iifeify",
-  "version": "0.1.0",
-  "description": "Turn any browser-compatible npm package into a single classic script (an IIFE that defines one global), with a generated license banner.",
-  "keywords": [
-    "iife",
-    "bundle",
-    "esbuild",
-    "browser",
-    "script",
-    "global",
-    "license",
-    "npx",
-    "business-central",
-    "control-addin"
-  ],
-  "license": "MIT",
-  "type": "module",
-  "bin": {
-    "iifeify": "bin/cli.js"
-  },
-  "files": [
-    "bin",
-    "src"
-  ],
-  "engines": {
-    "node": ">=20.19.0"
-  },
-  "scripts": {
-    "test": "node --test \"test/*.test.js\"",
-    "test:e2e": "node --test \"test/e2e/*.test.js\"",
-    "build:example": "node bin/cli.js vanilla-jsoneditor@3.13.0 --entry standalone.js --global-name VanillaJsonEditor --outfile examples/bc-json-viewer/vanilla-jsoneditor.iife.js"
-  },
-  "dependencies": {
-    "cac": "^7.1.0",
-    "esbuild": "^0.28.0"
-  }
+    "name": "iifeify",
+    "version": "0.1.0",
+    "description": "Turn any browser-compatible npm package into a single classic script (an IIFE that defines one global), with a generated license banner.",
+    "license": "MIT",
+    "author": "Florian Noever",
+    "type": "module",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/Florian-Noever/iifeify.git"
+    },
+    "bugs": {
+        "url": "https://github.com/Florian-Noever/iifeify/issues"
+    },
+    "homepage": "https://github.com/Florian-Noever/iifeify",
+    "keywords": [
+        "iife",
+        "bundle",
+        "esbuild",
+        "browser",
+        "script",
+        "global",
+        "license",
+        "cli",
+        "npx",
+        "al",
+        "business-central",
+        "control-addin"
+    ],
+    "bin": {
+        "iifeify": "bin/cli.js"
+    },
+    "engines": {
+        "node": ">=22"
+    },
+    "files": [
+        "bin",
+        "src"
+    ],
+    "publishConfig": {
+        "access": "public"
+    },
+    "scripts": {
+        "check-types": "tsc --noEmit",
+        "lint": "eslint --max-warnings 0",
+        "test": "node --test \"test/*.test.js\"",
+        "test:e2e": "node --test \"test/e2e/*.test.js\"",
+        "build:example": "node bin/cli.js vanilla-jsoneditor@3.13.0 --entry standalone.js --global-name VanillaJsonEditor --outfile examples/bc-json-viewer/vanilla-jsoneditor.iife.js"
+    },
+    "dependencies": {
+        "cac": "^7.1.0",
+        "esbuild": "^0.28.0"
+    },
+    "devDependencies": {
+        "@stylistic/eslint-plugin": "^5.10.0",
+        "@types/node": "^22.20.5",
+        "eslint": "^10.14.0",
+        "eslint-plugin-import-x": "^4.18.1",
+        "typescript": "^6.0.3"
+    },
+    "allowScripts": {
+        "esbuild": true
+    }
 }

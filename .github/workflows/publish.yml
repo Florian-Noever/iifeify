@@ -1,0 +1,139 @@
+name: Publish Release
+
+on:
+  release:
+    types: [published]
+
+concurrency:
+  group: npm-publish
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  id-token: write
+  attestations: write
+
+jobs:
+  pack:
+    name: Pack
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+
+    outputs:
+      tarball: ${{ steps.pack.outputs.tarball }}
+
+    steps:
+      - name: Resolve version
+        id: version
+        uses: Florian-Noever/Florian-Noever/.github/actions/resolve-version@v1
+        with:
+          tag: ${{ github.event.release.tag_name }}
+          allow-prerelease: "false"
+
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          package-manager-cache: false
+
+      - name: Check version
+        env:
+          EXPECTED: ${{ steps.version.outputs.value }}
+        run: |
+          actual="$(jq -r .version package.json)"
+          locked="$(jq -r '.packages[""].version' package-lock.json)"
+          if [ "$actual" != "$EXPECTED" ] || [ "$locked" != "$EXPECTED" ]; then
+            echo "::error::The release is $EXPECTED, but package.json is $actual and package-lock.json is $locked. Bump both with npm version $EXPECTED --no-git-tag-version."
+            exit 1
+          fi
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check types
+        run: npm run check-types
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Test
+        run: npm test
+
+      - name: Test against the npm registry
+        run: npm run test:e2e
+
+      - name: Pack
+        id: pack
+        run: |
+          mkdir -p artifacts
+          file="$(npm pack --pack-destination artifacts --json | jq -r '.[0].filename')"
+          tar -tzf "artifacts/$file"
+          echo "tarball=artifacts/$file" >> "$GITHUB_OUTPUT"
+
+      - name: Upload package
+        uses: actions/upload-artifact@v7
+        with:
+          name: package
+          path: ${{ steps.pack.outputs.tarball }}
+          if-no-files-found: error
+          retention-days: 3
+
+  release:
+    name: Upload to release
+    needs: pack
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+
+    steps:
+      - name: Download package
+        uses: actions/download-artifact@v8
+        with:
+          name: package
+          path: artifacts
+
+      - name: Upload to release
+        uses: Florian-Noever/Florian-Noever/.github/actions/github-release-upload@v1
+        with:
+          files: ${{ needs.pack.outputs.tarball }}
+
+  npm:
+    name: npm
+    needs: [pack, release]
+    if: ${{ !github.event.release.prerelease }}
+    runs-on: ubuntu-latest
+    environment: npm
+
+    # Trusted publishing: npm exchanges the job's OIDC token for the right to publish, and
+    # attaches provenance. No npm token is stored anywhere.
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Download package
+        uses: actions/download-artifact@v8
+        with:
+          name: package
+          path: artifacts
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+          package-manager-cache: false
+
+      # The tarball that was tested and attached to the release, so npm gets the same file.
+      - name: Publish
+        env:
+          TARBALL: ${{ needs.pack.outputs.tarball }}
+        run: npm publish "$TARBALL"

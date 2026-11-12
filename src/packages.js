@@ -46,8 +46,12 @@ export function packageDirOf(file) {
     // A linked local folder is not under node_modules. Its package.json is the nearest one with a
     // name; a nested one such as dist/esm/package.json only sets the module type.
     for (let dir = dirname(file); ; dir = dirname(dir)) {
-        if (isPackageRoot(dir)) return dir;
-        if (dirname(dir) === dir) return undefined;
+        if (isPackageRoot(dir)) {
+            return dir;
+        }
+        if (dirname(dir) === dir) {
+            return undefined;
+        }
     }
 }
 
@@ -85,8 +89,12 @@ export function describePackage(dir) {
 }
 
 function licenseOf({ license, licenses }) {
-    if (typeof license === 'string' && license) return license;
-    if (typeof license?.type === 'string') return license.type; // old form: { type, url }
+    if (typeof license === 'string' && license) {
+        return license;
+    }
+    if (typeof license?.type === 'string') { // old form: { type, url }
+        return license.type;
+    }
     if (Array.isArray(licenses)) { // old form: a list of the above
         return licenses.map(entry => entry?.type ?? entry).filter(type => typeof type === 'string').join(' OR ') || undefined;
     }
@@ -97,7 +105,9 @@ function copyrightOf(license, legalTexts, author) {
     if (license && NOTICE_FIRST_LICENSE.test(license)) {
         for (const { text } of legalTexts) {
             const notice = copyrightNotice(text);
-            if (notice) return notice;
+            if (notice) {
+                return notice;
+            }
         }
     }
     // "Jane Doe <jane@example.com> (https://example.com)" or { name, email, url }
@@ -110,26 +120,36 @@ function copyrightNotice(text) {
     // Without Markdown heading, quote, list and emphasis marks.
     const lines = text.split('\n').map(line => line.replace(/^[\s#>*_-]+|[\s*_]+$/g, ''));
     const start = lines.findIndex(line => /^(copyright\b|\(c\)|©)/i.test(line) && !TEMPLATE.test(line) && !PROSE.test(line));
-    if (start === -1) return undefined;
+    if (start === -1) {
+        return undefined;
+    }
 
     // A long list of holders runs on to the next line, leaving a comma at the end of this one.
     let end = start;
-    while (lines[end].endsWith(',') && lines[end + 1]) end++;
+    while (lines[end].endsWith(',') && lines[end + 1]) {
+        end++;
+    }
     return lines.slice(start, end + 1).join(' ').replace(/\s+/g, ' ');
 }
 
 function urlOf({ name, homepage, repository }) {
-    if (typeof homepage === 'string' && /^https?:\/\//.test(homepage)) return homepage;
+    if (typeof homepage === 'string' && /^https?:\/\//.test(homepage)) {
+        return homepage;
+    }
     return repositoryUrl(repository) ?? `https://www.npmjs.com/package/${name}`;
 }
 
 /** The web address of a package.json "repository", which can be a string or { url } in several notations. */
 function repositoryUrl(repository) {
     const raw = typeof repository === 'string' ? repository : repository?.url;
-    if (typeof raw !== 'string') return undefined;
+    if (typeof raw !== 'string') {
+        return undefined;
+    }
 
     const short = /^(?:(github|gitlab|bitbucket):)?([\w.-]+\/[\w.-]+)$/.exec(raw); // "user/repo", "gitlab:user/repo"
-    if (short) return `https://${HOSTS[short[1] ?? 'github']}/${short[2]}`;
+    if (short) {
+        return `https://${HOSTS[short[1] ?? 'github']}/${short[2]}`;
+    }
 
     const url = raw
         .replace(/^git\+/, '')

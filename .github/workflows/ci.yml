@@ -1,0 +1,116 @@
+name: CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Check
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check types
+        run: npm run check-types
+
+      - name: Lint
+        run: npm run lint
+
+  test:
+    name: Test (${{ matrix.os }}, Node.js ${{ matrix.node-version }})
+    runs-on: ${{ matrix.os }}
+
+    # The tool runs npm and handles paths, so it is tested on Windows too, and on every
+    # Node.js line that engines allows.
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest]
+        node-version: ['22', '24', '26']
+        include:
+          - os: windows-latest
+            node-version: '24'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Test
+        run: npm test
+
+      - name: Test against the npm registry
+        run: npm run test:e2e
+
+  package:
+    name: Package
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      - name: Check version
+        run: |
+          actual="$(jq -r .version package.json)"
+          locked="$(jq -r '.packages[""].version' package-lock.json)"
+          if [ "$locked" != "$actual" ]; then
+            echo "::error::package-lock.json is version $locked but package.json is $actual. Bump both with npm version <version> --no-git-tag-version."
+            exit 1
+          fi
+
+      - name: Pack
+        id: pack
+        run: |
+          mkdir -p artifacts
+          file="$(npm pack --pack-destination artifacts --json | jq -r '.[0].filename')"
+          tar -tzf "artifacts/$file"
+          echo "tarball=artifacts/$file" >> "$GITHUB_OUTPUT"
+
+      - name: Archive package
+        uses: actions/upload-artifact@v7
+        with:
+          path: ${{ steps.pack.outputs.tarball }}
+          archive: false
+          if-no-files-found: error
+          retention-days: 14
+
+  automerge:
+    needs: [check, test, package]
+    permissions:
+      contents: write
+      pull-requests: write
+    uses: Florian-Noever/Florian-Noever/.github/workflows/dependabot-automerge.yml@v1

@@ -2,6 +2,7 @@
 import { readFileSync } from 'node:fs';
 import { isAbsolute, relative } from 'node:path';
 import { cac } from 'cac';
+
 import { convert } from '../src/convert.js';
 import { ConversionError, UsageError } from '../src/errors.js';
 
@@ -36,6 +37,7 @@ cli.command('<package>', 'Turn an npm package into one classic browser script th
 cli.help();
 cli.version(version);
 
+/** @param {Awaited<ReturnType<typeof convert>>} result */
 function report({ files, bytes, packages, entry, globalName, warnings, hint }) {
     const [root, ...dependencies] = packages;
     // Relative to the current folder if the file is inside it, else in full.
@@ -52,13 +54,23 @@ function report({ files, bytes, packages, entry, globalName, warnings, hint }) {
     console.log(`  global   ${globalName}`);
     if (dependencies.length > 0) {
         console.log(`  bundled  ${dependencies.length} ${dependencies.length === 1 ? 'dependency' : 'dependencies'}`);
-        for (const dependency of dependencies) console.log(`           ${described(dependency)}`);
+        for (const dependency of dependencies) {
+            console.log(`           ${described(dependency)}`);
+        }
     }
-    if (files.css) console.log(`  styles   ${shown(files.css)}`);
-    if (files.notices) console.log(`  notices  ${shown(files.notices)}`);
+    if (files.css) {
+        console.log(`  styles   ${shown(files.css)}`);
+    }
+    if (files.notices) {
+        console.log(`  notices  ${shown(files.notices)}`);
+    }
 
-    for (const warning of warnings) console.error(`\n${warning}`);
-    if (hint) console.log(`\nHint: ${hint}`);
+    for (const warning of warnings) {
+        console.error(`\n${warning}`);
+    }
+    if (hint) {
+        console.log(`\nHint: ${hint}`);
+    }
 }
 
 try {

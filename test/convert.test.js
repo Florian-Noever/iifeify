@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+
 import { defaultGlobalName, defaultOutfile } from '../src/convert.js';
 
 test('the default global is the package name in PascalCase', () => {

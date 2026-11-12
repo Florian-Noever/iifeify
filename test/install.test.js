@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+
 import { UsageError } from '../src/errors.js';
 import { parseSpec } from '../src/install.js';
 

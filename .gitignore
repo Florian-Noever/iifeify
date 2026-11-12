@@ -148,5 +148,7 @@ vite.config.ts.timestamp-*
 # Turbo Repo
 .turbo
 
-# Local examples, kept out of the repository
+# Custom
+artifacts/
 examples/
+CLAUDE.md

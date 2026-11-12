@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { basename, dirname, join, relative, resolve } from 'node:path';
+
 import { renderBanner, renderNotices } from './banner.js';
 import { bundle, checkOptions } from './bundle.js';
 import { installPackage, parseSpec } from './install.js';
@@ -20,16 +21,16 @@ import { bundledPackages } from './packages.js';
  * @returns {Promise<{ files: { js: string, css?: string, notices?: string }, bytes: number,
  *     packages: object[], entry: string, globalName: string, warnings: string[], hint?: string }>}
  */
-export async function convert({ spec, entry, globalName, outfile, minify = true, target, notices = false }) {
+export async function convert({ spec, entry, globalName: requestedGlobalName, outfile, minify = true, target, notices = false }) {
     const wanted = parseSpec(spec);
-    await checkOptions({ globalName, target });
+    await checkOptions({ globalName: requestedGlobalName, target });
 
     // The real path: on Windows the temp folder can be given as a short 8.3 alias, and esbuild
     // reports files by their real paths.
     const workDir = realpathSync.native(mkdtempSync(join(tmpdir(), 'iifeify-')));
     try {
         const { dir, manifest } = installPackage(wanted, workDir);
-        globalName ??= defaultGlobalName(manifest.name);
+        const globalName = requestedGlobalName ?? defaultGlobalName(manifest.name);
 
         const label = `${manifest.name} ${manifest.version}`;
         const built = await bundle({ workDir, name: wanted.name, dir, label, entry, globalName, minify, target });
@@ -91,10 +92,14 @@ function unscoped(packageName) {
  * a ready-made file that contains them. Bundlers follow "exports", so the ready-made file takes --entry.
  */
 function prebuiltHint(manifest, dir, entryFile) {
-    if (typeof manifest.browser !== 'string') return undefined;
+    if (typeof manifest.browser !== 'string') {
+        return undefined;
+    }
 
     const prebuilt = resolve(dir, manifest.browser);
-    if (prebuilt === entryFile || !existsSync(prebuilt)) return undefined;
+    if (prebuilt === entryFile || !existsSync(prebuilt)) {
+        return undefined;
+    }
     const entry = relative(dir, prebuilt).replaceAll('\\', '/');
     return `${manifest.name} also ships a prebuilt browser file. To bundle that instead, add: --entry ${entry}`;
 }

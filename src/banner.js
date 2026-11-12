@@ -6,7 +6,9 @@ const RULE = '='.repeat(80);
  * @param {object[]} packages   as described by describePackage, the converted package first
  */
 export function renderBanner([root, ...dependencies]) {
-    if (dependencies.length === 0) return `/*! ${line(root)} */`;
+    if (dependencies.length === 0) {
+        return `/*! ${line(root)} */`;
+    }
     return [
         '/*!',
         ` * ${line(root)}`,
@@ -25,7 +27,9 @@ function line({ name, version, copyright, license, url }) {
 }
 
 function licenseLabel(license) {
-    if (!license) return 'license unknown';
+    if (!license) {
+        return 'license unknown';
+    }
     // "MIT" reads better as "MIT License"; an expression such as "(MIT OR Apache-2.0)" stays as it is.
     return /^[\w.+-]+$/.test(license) ? `${license} License` : license;
 }

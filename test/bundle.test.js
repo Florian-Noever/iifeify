@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import vm from 'node:vm';
+
 import { bundle, checkOptions } from '../src/bundle.js';
 import { ConversionError, UsageError } from '../src/errors.js';
 import { tempTree } from './helpers.js';
@@ -167,6 +168,7 @@ test('CSS that the package imports comes out as a stylesheet', async t => {
         'node_modules/widget/style.css': '.widget { color: red; }',
     });
     assert.equal(run(built.js).Widget.styled, true);
+    assert.ok(built.css, 'a stylesheet');
     assert.match(built.css, /\.widget\{color:red\}/);
 });
 

@@ -1,6 +1,7 @@
 import { execSync } from 'node:child_process';
 import { readFileSync, realpathSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+
 import { ConversionError, UsageError } from './errors.js';
 
 // npm's rule for package names, including old names with capital letters.
