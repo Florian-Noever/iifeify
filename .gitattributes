@@ -1,0 +1,2 @@
+# LF everywhere: a CRLF after the shebang in bin/cli.js breaks the command on Linux and macOS.
+* text=auto eol=lf
