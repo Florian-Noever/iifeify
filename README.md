@@ -3,7 +3,7 @@
 Turn an npm package into one classic browser script.
 
 ```bash
-npx iifeify vanilla-jsoneditor@3.13.0 --entry standalone.js --global-name VanillaJsonEditor
+npx -y iifeify vanilla-jsoneditor@3.13.0 --entry standalone.js --global-name VanillaJsonEditor
 ```
 
 This writes `vanilla-jsoneditor.iife.js`. Loaded with a plain `<script>` tag, the file defines the global `VanillaJsonEditor`, which holds everything the package exports. The file starts with a license banner generated from the package's own metadata:
@@ -32,7 +32,7 @@ iifeify is for hosts that accept only classic scripts and cannot `import` anythi
 Run it directly with `npx`, no installation required:
 
 ```bash
-npx iifeify <package>
+npx -y iifeify <package>
 ```
 
 Or install it globally:
