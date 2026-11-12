@@ -24,7 +24,7 @@
     "src"
   ],
   "engines": {
-    "node": ">=20"
+    "node": ">=20.19.0"
   },
   "scripts": {
     "test": "node --test \"test/*.test.js\"",
@@ -32,6 +32,7 @@
     "build:example": "node bin/cli.js vanilla-jsoneditor@3.13.0 --entry standalone.js --global-name VanillaJsonEditor --outfile examples/bc-json-viewer/vanilla-jsoneditor.iife.js"
   },
   "dependencies": {
+    "cac": "^7.1.0",
     "esbuild": "^0.28.0"
   }
 }

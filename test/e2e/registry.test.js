@@ -38,12 +38,14 @@ test('converts a package without dependencies', t => {
 });
 
 test('lists a bundled dependency in the banner and writes the notices file', t => {
-    const { cwd, status, stdout, stderr } = iifeify(t, 'is-odd@3.0.1', '--global-name', 'isOdd', '--outfile', 'out/odd.js', '--notices');
+    // The options in every form the command line takes: before the package, short, long and negated.
+    const { cwd, status, stdout, stderr } = iifeify(t, '--notices', 'is-odd@3.0.1', '-g', 'isOdd', '--outfile', 'out/odd.js', '--no-minify');
     assert.equal(status, 0, stderr);
     assert.match(stdout, /bundled {2}1 dependency\n\s+is-number 6\.\d+\.\d+ - MIT\n/);
 
     const script = readFileSync(join(cwd, 'out', 'odd.js'), 'utf8');
     assert.match(script, /^\/\*!\n \* is-odd 3\.0\.1 - .*MIT License.*\n \*\n \* Bundled dependencies:\n \* is-number 6\.\d+\.\d+ - .*MIT License.*\n \*\/\n/);
+    assert.match(script, /\nvar isOdd = \(\(\) => \{\n/, 'not minified');
     assert.equal(run(script).isOdd(3), true);
 
     const notices = readFileSync(join(cwd, 'out', 'odd.LICENSES.txt'), 'utf8');

@@ -1,74 +1,40 @@
 #!/usr/bin/env node
 import { readFileSync } from 'node:fs';
 import { isAbsolute, relative } from 'node:path';
-import { parseArgs } from 'node:util';
+import { cac } from 'cac';
 import { convert } from '../src/convert.js';
 import { ConversionError, UsageError } from '../src/errors.js';
 
-const HELP = `Usage: iifeify <package>[@version] [options]
+const { version } = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
 
-Turns an npm package into one classic browser script that defines a single global.
+// cac turns a value that looks like a number into one, such as the file name in "--outfile 2024".
+const text = value => (value === undefined ? undefined : String(value));
 
-Options:
-  -e, --entry <path>        file or subpath inside the package to bundle
-                            (default: the package's own browser entry)
-  -g, --global-name <name>  global variable the script defines
-                            (default: the package name in PascalCase)
-  -o, --outfile <file>      where to write the script
-                            (default: ./<package>.iife.js)
-      --no-minify           keep the output readable
-      --target <list>       language level of the output, e.g. es2020
-                            (default: esnext)
-      --notices             also write the full license texts of all bundled
-                            packages, to a file such as ms.iife.LICENSES.txt
-  -h, --help                show this help
-  -v, --version             show the version
+const cli = cac('iifeify');
 
-Examples:
-  iifeify ms
-  iifeify vanilla-jsoneditor@3.13.0 --entry standalone.js --global-name VanillaJsonEditor`;
-
-const OPTIONS = {
-    entry: { type: 'string', short: 'e' },
-    'global-name': { type: 'string', short: 'g' },
-    outfile: { type: 'string', short: 'o' },
-    'no-minify': { type: 'boolean' },
-    target: { type: 'string' },
-    notices: { type: 'boolean' },
-    help: { type: 'boolean', short: 'h' },
-    version: { type: 'boolean', short: 'v' },
-};
-
-async function main(argv) {
-    let values, positionals;
-    try {
-        ({ values, positionals } = parseArgs({ args: argv, options: OPTIONS, allowPositionals: true }));
-    } catch (error) {
-        throw new UsageError(error.message);
-    }
-
-    if (values.help) {
-        console.log(HELP);
-        return;
-    }
-    if (values.version) {
-        console.log(JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version);
-        return;
-    }
-    if (positionals.length !== 1) {
-        throw new UsageError(positionals.length === 0 ? 'Name the package to convert.' : 'Name one package only.');
-    }
-
-    report(await convert({
-        spec: positionals[0],
-        entry: values.entry,
-        globalName: values['global-name'],
-        outfile: values.outfile,
-        minify: !values['no-minify'],
-        target: values.target?.split(','),
-        notices: values.notices,
-    }));
-}
+cli.command('<package>', 'Turn an npm package into one classic browser script that defines a single global')
+    .usage('<package>[@version] [options]')
+    .option('-e, --entry <path>', 'File or subpath inside the package to bundle (default: its own browser entry)')
+    .option('-g, --global-name <name>', 'Global variable the script defines (default: the package name in PascalCase)')
+    .option('-o, --outfile <file>', 'Where to write the script (default: ./<package>.iife.js)')
+    .option('--minify', 'Minify the output; --no-minify keeps it readable', { default: true })
+    .option('--target <list>', 'Language level of the output, e.g. es2020 (default: esnext)')
+    .option('--notices', 'Also write the full license texts of all bundled packages, e.g. to ms.iife.LICENSES.txt')
+    .example('  $ iifeify ms')
+    .example('  $ iifeify vanilla-jsoneditor@3.13.0 --entry standalone.js --global-name VanillaJsonEditor')
+    .action(async (spec, options) => {
+        report(await convert({
+            spec: String(spec),
+            entry: text(options.entry),
+            globalName: text(options.globalName),
+            outfile: text(options.outfile),
+            minify: options.minify,
+            target: text(options.target)?.split(','),
+            notices: options.notices,
+        }));
+    });
+cli.help();
+cli.version(version);
 
 function report({ files, bytes, packages, entry, globalName, warnings, hint }) {
     const [root, ...dependencies] = packages;
@@ -95,8 +61,14 @@ function report({ files, bytes, packages, entry, globalName, warnings, hint }) {
     if (hint) console.log(`\nHint: ${hint}`);
 }
 
-main(process.argv.slice(2)).catch(error => {
-    if (error instanceof UsageError) {
+try {
+    // Parsing prints the help or the version if asked to. Running is a separate step, so that
+    // a failure inside the conversion can be awaited and caught here.
+    cli.parse(process.argv, { run: false });
+    await cli.runMatchedCommand();
+} catch (error) {
+    // cac does not export the class of the errors it throws for a wrong command line.
+    if (error instanceof UsageError || error.name === 'CACError') {
         console.error(`${error.message}\nRun "iifeify --help" for the options.`);
         process.exitCode = 2;
     } else if (error instanceof ConversionError) {
@@ -106,4 +78,4 @@ main(process.argv.slice(2)).catch(error => {
         console.error(error);
         process.exitCode = 1;
     }
-});
+}

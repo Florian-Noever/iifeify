@@ -106,7 +106,7 @@ The startup script then finds the library in the global `VanillaJsonEditor` and 
 
 ## Requirements
 
-Node.js 20 or newer, with npm.
+Node.js 20.19 or newer, with npm.
 
 ## Development
 
