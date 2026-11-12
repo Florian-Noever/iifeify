@@ -8,6 +8,12 @@ import { installPackage, parseSpec } from './install.js';
 import { bundledPackages } from './packages.js';
 
 /**
+ * @typedef {{ name: 'install', spec: string } | { name: 'bundle', label: string }} Step
+ *     a step of a conversion: npm installs the package as the user named it, or esbuild bundles
+ *     the installed package, labelled with its name and version such as "ms 2.1.3"
+ */
+
+/**
  * Installs an npm package into a temporary folder and writes it as one classic browser script.
  *
  * @param {object} options
@@ -18,10 +24,11 @@ import { bundledPackages } from './packages.js';
  * @param {boolean} [options.minify]
  * @param {string[]} [options.target]      esbuild targets such as ["es2020"]
  * @param {boolean} [options.notices]      also write the full license texts next to the script
+ * @param {(step: Step) => void} [options.onStep]  called as each step starts, to report progress
  * @returns {Promise<{ files: { js: string, css?: string, notices?: string }, bytes: number,
  *     packages: object[], entry: string, globalName: string, warnings: string[], hint?: string }>}
  */
-export async function convert({ spec, entry, globalName: requestedGlobalName, outfile, minify = true, target, notices = false }) {
+export async function convert({ spec, entry, globalName: requestedGlobalName, outfile, minify = true, target, notices = false, onStep }) {
     const wanted = parseSpec(spec);
     await checkOptions({ globalName: requestedGlobalName, target });
 
@@ -29,10 +36,12 @@ export async function convert({ spec, entry, globalName: requestedGlobalName, ou
     // reports files by their real paths.
     const workDir = realpathSync.native(mkdtempSync(join(tmpdir(), 'iifeify-')));
     try {
-        const { dir, manifest } = installPackage(wanted, workDir);
+        onStep?.({ name: 'install', spec });
+        const { dir, manifest } = await installPackage(wanted, workDir);
         const globalName = requestedGlobalName ?? defaultGlobalName(manifest.name);
 
         const label = `${manifest.name} ${manifest.version}`;
+        onStep?.({ name: 'bundle', label });
         const built = await bundle({ workDir, name: wanted.name, dir, label, entry, globalName, minify, target });
         const packages = bundledPackages(built.inputs, dir);
         const banner = renderBanner(packages);

@@ -27,6 +27,7 @@ function run(script) {
 test('converts a package without dependencies', t => {
     const { cwd, status, stdout, stderr } = iifeify(t, 'ms@2.1.3');
     assert.equal(status, 0, stderr);
+    assert.match(stderr, /^Installing ms@2\.1\.3 with npm\.\.\. done in \d+(?:ms|\.\ds)\nBundling ms 2\.1\.3 with esbuild\.\.\. done in \d+(?:ms|\.\ds)\n$/);
     assert.match(stdout, /^Wrote ms\.iife\.js /);
 
     const script = readFileSync(join(cwd, 'ms.iife.js'), 'utf8');
@@ -60,13 +61,13 @@ test('refuses a package that needs Node built-ins', t => {
     const { cwd, status, stdout, stderr } = iifeify(t, 'mkdirp@3.0.1');
     assert.equal(status, 1);
     assert.equal(stdout, '');
-    assert.match(stderr, /^mkdirp 3\.0\.1 is not browser compatible: it needs the Node\.js built-in modules fs, path\.\n/);
+    assert.match(stderr, /^Installing mkdirp@3\.0\.1 with npm\.\.\. done in \d+(?:ms|\.\ds)\nBundling mkdirp 3\.0\.1 with esbuild\.\.\. failed\n\nmkdirp 3\.0\.1 is not browser compatible: it needs the Node\.js built-in modules fs, path\.\n/);
     assert.deepEqual(readdirSync(cwd), [], 'nothing is written');
 });
 
 test('reports a version that does not exist', t => {
     const { cwd, status, stderr } = iifeify(t, 'ms@0.0.0-does-not-exist');
     assert.equal(status, 1);
-    assert.match(stderr, /^Could not install ms@0\.0\.0-does-not-exist\.\n/);
+    assert.match(stderr, /^Installing ms@0\.0\.0-does-not-exist with npm\.\.\. failed\n\nCould not install ms@0\.0\.0-does-not-exist\.\n/);
     assert.equal(existsSync(join(cwd, 'ms.iife.js')), false);
 });

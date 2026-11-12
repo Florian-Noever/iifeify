@@ -1,14 +1,32 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
+
+import { tempTree } from './helpers.js';
 
 const cli = fileURLToPath(new URL('../bin/cli.js', import.meta.url));
 const { version } = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
 
 // None of these calls gets as far as installing anything.
 const run = (...args) => spawnSync(process.execPath, [cli, ...args], { encoding: 'utf8' });
+
+test('prints each step on stderr and the result on stdout', t => {
+    // npm installs a package from a local folder without going to the registry.
+    const root = tempTree(t, {
+        'widget/package.json': { name: 'widget', version: '1.0.0', main: 'index.js', license: 'MIT' },
+        'widget/index.js': 'module.exports = 42;',
+    });
+    const spec = `widget@file:${join(root, 'widget').replaceAll('\\', '/')}`;
+    const { status, stdout, stderr } = spawnSync(process.execPath, [cli, spec, '-o', 'out.js'], { cwd: root, encoding: 'utf8' });
+
+    assert.equal(status, 0, stderr);
+    assert.ok(stderr.startsWith(`Installing ${spec} with npm... done in `), stderr);
+    assert.match(stderr, /\.\.\. done in \d+(?:ms|\.\ds)\nBundling widget 1\.0\.0 with esbuild\.\.\. done in \d+(?:ms|\.\ds)\n$/);
+    assert.match(stdout, /^Wrote out\.js \(0\.\d KB\)\n {2}package {2}widget 1\.0\.0 - MIT\n {2}entry {4}index\.js\n {2}global {3}Widget\n$/);
+});
 
 test('--help prints the usage, the options and the examples', () => {
     const { status, stdout } = run('--help');

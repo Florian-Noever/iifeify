@@ -62,7 +62,18 @@ npx iifeify <package>[@version] [options]
 | `-h`, `--help` | Show the help | |
 | `-v`, `--version` | Show the version | |
 
-The exit code is 0 on success, 1 if the package cannot be converted and 2 for a wrong command line.
+While it runs, iifeify prints each step and how long it took on stderr, and the result on stdout:
+
+```text
+Installing vanilla-jsoneditor@3.13.0 with npm... done in 3.4s
+Bundling vanilla-jsoneditor 3.13.0 with esbuild... done in 555ms
+Wrote vanilla-jsoneditor.iife.js (1.21 MB)
+  package  vanilla-jsoneditor 3.13.0 - ISC
+  entry    standalone.js
+  global   VanillaJsonEditor
+```
+
+A step that fails ends with `failed`, followed by the reason. The exit code is 0 on success, 1 if the package cannot be converted and 2 for a wrong command line.
 
 ### How it works
 

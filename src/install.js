@@ -1,8 +1,12 @@
-import { execSync } from 'node:child_process';
+import { exec } from 'node:child_process';
 import { readFileSync, realpathSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { promisify } from 'node:util';
 
 import { ConversionError, UsageError } from './errors.js';
+
+// Asynchronous, so that the caller can report progress while npm works.
+const run = promisify(exec);
 
 // npm's rule for package names, including old names with capital letters.
 const PACKAGE_NAME = /^(@[a-z0-9~-][a-z0-9._~-]*\/)?[a-z0-9~-][a-z0-9._~-]*$/i;
@@ -29,9 +33,9 @@ export function parseSpec(spec) {
 /**
  * Installs the package and its dependencies into workDir/node_modules.
  *
- * @returns {{ dir: string, manifest: object }} the package's folder and its package.json
+ * @returns {Promise<{ dir: string, manifest: object }>} the package's folder and its package.json
  */
-export function installPackage({ name, range }, workDir) {
+export async function installPackage({ name, range }, workDir) {
     // A package.json of our own makes workDir the project root. Without one, npm installs into the
     // nearest parent folder that has a package.json, and the temp folder lies inside the user
     // profile. It also keeps the range off the command line: on Windows npm starts through cmd.exe,
@@ -39,7 +43,7 @@ export function installPackage({ name, range }, workDir) {
     writeFileSync(join(workDir, 'package.json'), JSON.stringify({ private: true, dependencies: { [name]: range } }));
 
     try {
-        execSync(INSTALL, { cwd: workDir, stdio: ['ignore', 'pipe', 'pipe'], encoding: 'utf8', windowsHide: true });
+        await run(INSTALL, { cwd: workDir, encoding: 'utf8', windowsHide: true, maxBuffer: 64 * 1024 * 1024 });
     } catch (error) {
         const output = String(error.stderr ?? '').trim() || error.message;
         throw new ConversionError(`Could not install ${name}@${range}.\n\n${output}`);

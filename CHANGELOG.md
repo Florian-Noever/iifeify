@@ -4,6 +4,14 @@ All notable changes to **iifeify** are documented in this file.
 
 ---
 
+## [Unreleased]
+
+### Added
+
+- Progress while a conversion runs: a line on stderr when npm installs the package and when esbuild bundles it, each ending with the time it took, or with `failed` before the reason
+
+---
+
 ## [1.0.0] – 2026-11-12
 
 ### Added

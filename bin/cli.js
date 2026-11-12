@@ -24,7 +24,7 @@ cli.command('<package>', 'Turn an npm package into one classic browser script th
     .example('  $ iifeify ms')
     .example('  $ iifeify vanilla-jsoneditor@3.13.0 --entry standalone.js --global-name VanillaJsonEditor')
     .action(async (spec, options) => {
-        report(await convert({
+        const result = await convert({
             spec: String(spec),
             entry: text(options.entry),
             globalName: text(options.globalName),
@@ -32,10 +32,42 @@ cli.command('<package>', 'Turn an npm package into one classic browser script th
             minify: options.minify,
             target: text(options.target)?.split(','),
             notices: options.notices,
-        }));
+            onStep: step => startStep(step.name === 'install'
+                ? `Installing ${step.spec} with npm`
+                : `Bundling ${step.label} with esbuild`),
+        });
+        endStep('done');
+        report(result);
     });
 cli.help();
 cli.version(version);
+
+// While a conversion runs, each step gets a line on stderr, like the warnings: what is being done,
+// then how long it took, or that it failed. stdout gets the result only.
+/** @type {number | undefined} */
+let stepStartedAt;
+
+/** @param {string} description */
+function startStep(description) {
+    endStep('done');
+    process.stderr.write(`${description}... `);
+    stepStartedAt = performance.now();
+}
+
+/** @param {'done' | 'failed'} outcome */
+function endStep(outcome) {
+    if (stepStartedAt === undefined) {
+        return;
+    }
+    const ms = performance.now() - stepStartedAt;
+    stepStartedAt = undefined;
+    if (outcome === 'failed') {
+        process.stderr.write('failed\n\n'); // the error follows after a blank line
+        return;
+    }
+    const took = ms < 1000 ? `${Math.round(ms)}ms` : `${(ms / 1000).toFixed(1)}s`;
+    process.stderr.write(`done in ${took}\n`);
+}
 
 /** @param {Awaited<ReturnType<typeof convert>>} result */
 function report({ files, bytes, packages, entry, globalName, warnings, hint }) {
@@ -79,6 +111,7 @@ try {
     cli.parse(process.argv, { run: false });
     await cli.runMatchedCommand();
 } catch (error) {
+    endStep('failed');
     // cac does not export the class of the errors it throws for a wrong command line.
     if (error instanceof UsageError || error.name === 'CACError') {
         console.error(`${error.message}\nRun "iifeify --help" for the options.`);
